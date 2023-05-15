@@ -372,7 +372,8 @@ def create_report(class_id = 184, story = HUBBLE_ROUTE_PATH):
     response['student_id'] = roster.student_id['student_id']
     df = pd.DataFrame(c1)
     df['student_id'] = roster.student_id['student_id']
-    df['username'] = roster.students['username']
+    # add a string column containing roster.students['username']
+    df['username'] = roster.students['username'].values
     completion_string, completion_percent = roster.fraction_completed()
     df['progress'] = completion_string
     df['percent_story_complete'] = completion_percent
@@ -385,9 +386,6 @@ def create_report(class_id = 184, story = HUBBLE_ROUTE_PATH):
     last_modified = pd.to_datetime(roster.last_modified['last_modified']).tz_convert('US/Eastern').strftime("%Y-%m-%d %H:%M:%S (Eastern)") # in Easterm time
     df['last_modified'] = last_modified
     return df
-
-df = create_report(184, HUBBLE_ROUTE_PATH)
-df.to_excel('rogers_class_progress.xlsx')
 
 ## create a cli so that will take the class_id as an argument, pass it to create report and export 
 # an excel fill called class_id_class_progress.xlsx
