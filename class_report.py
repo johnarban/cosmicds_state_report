@@ -58,7 +58,6 @@ class State:
         
     
     def get_possible_score(self):
-        total_score = self.total_score
         possible_score = 0
         for key, value in self.mc_scoring.items():
             for v in value.values():
@@ -301,6 +300,7 @@ class Roster():
         measurements = []
         for student in self.data:
             for measurement in student['measurements']:
+                measurement['class_id'] = self.class_id
                 measurements.append(measurement)
         return measurements
     
@@ -315,11 +315,19 @@ class Roster():
         # add self.student_ids as a column
         if 'student_id' not in dictionary.keys():
             dictionary['student_id'] = self.student_ids
-        if isinstance(dictionary, pd.DataFrame):
-            return dictionary.set_index('student_id')
+        if 'class_id' not in dictionary.keys():
+            dictionary['class_id'] = self.class_id
+        if 'username' not in dictionary.keys():
+            dictionary['username'] = self.students['username'].values
+        # if isinstance(dictionary, pd.DataFrame):
+        #     return dictionary.set_index('student_id')
         
-        df = pd.DataFrame(dictionary).set_index('student_id')
-        return df
+        # place student_id, class_id, and username as the first three columns
+        first_cols = ['student_id', 'class_id', 'username']
+        cols = first_cols + [col for col in dictionary.keys() if col not in first_cols]
+        dictionary = {k:dictionary[k] for k in cols}
+        # df = pd.DataFrame(dictionary).set_index('student_id')
+        return pd.DataFrame(dictionary)
     
     @property
     def student_ids(self):
@@ -360,10 +368,37 @@ class Roster():
             how_far.append(state.how_far)
             tot_perc.append(state.percent_completion)
         return self.l2d(how_far)['string'], tot_perc
-           
+    
+    def report(self):
+        roster = self
+        data = [[s.get('marker',None) for s in stage] for stage in roster.stages]
+        cols = ['Stage 1 marker', 'Stage 3 marker', 'Stage 4 marker', 'Stage 5 marker', 'Stage 6 marker']
+        c1 = {k:v for k,v in zip(cols, data)}
+        response = ndf.flatten(pd.DataFrame(roster.story_state['responses']))
+        response['student_id'] = roster.student_id['student_id']
+        df = pd.DataFrame(c1)
+        df['student_id'] = roster.student_id['student_id']
+        # add a string column containing roster.students['username']
+        df['username'] = roster.students['username'].values
+        df['class_id'] = roster.class_id
+        completion_string, completion_percent = roster.fraction_completed()
+        df['progress'] = completion_string
+        df['percent_story_complete'] = completion_percent
+        # df['percent_story_complete'] = df['percent_story_complete'].apply(lambda x: int(x))
+        df['max_stage_index'] = roster.new_story_state.max_stage_index
+        df['max_stage_marker'] = roster.new_story_state.max_marker
+        df['stage_index'] = roster.stage_index
+        df['total_score'] = roster.story_state['total_score']
+        df['out_of_possible'] = roster.out_of
+
+        df = df.merge(response, on='student_id', how='left')
+        last_modified = pd.to_datetime(roster.last_modified['last_modified']).tz_convert('US/Eastern').strftime("%Y-%m-%d %H:%M:%S (Eastern)") # in Easterm time
+        df['last_modified'] = last_modified
+        return df
 
 # %%
 def create_report(class_id = 184, story = HUBBLE_ROUTE_PATH):
+
     roster = Roster(class_id = class_id)
     data = [[s.get('marker',None) for s in stage] for stage in roster.stages]
     cols = ['Stage 1 marker', 'Stage 3 marker', 'Stage 4 marker', 'Stage 5 marker', 'Stage 6 marker']
@@ -374,10 +409,13 @@ def create_report(class_id = 184, story = HUBBLE_ROUTE_PATH):
     df['student_id'] = roster.student_id['student_id']
     # add a string column containing roster.students['username']
     df['username'] = roster.students['username'].values
+    df['class_id'] = roster.class_id
     completion_string, completion_percent = roster.fraction_completed()
     df['progress'] = completion_string
     df['percent_story_complete'] = completion_percent
     # df['percent_story_complete'] = df['percent_story_complete'].apply(lambda x: int(x))
+    df['max_stage_index'] = roster.new_story_state.max_stage_index
+    df['max_stage_marker'] = roster.new_story_state.max_marker
     df['stage_index'] = roster.stage_index
     df['total_score'] = roster.story_state['total_score']
     df['out_of_possible'] = roster.out_of
@@ -394,7 +432,12 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Create a report for a class')
     parser.add_argument('class_id', type=int, help='The class id')
-    # parser.add_argument('story', type=str, help='The story route path')
+    # if there are multiple arguments given then loop over them 
     args = parser.parse_args()
+    
+    if args.class_id is None:
+        print('Please provide a class id')
+        exit()
+    
     df = create_report(args.class_id)
     df.to_excel(f'{args.class_id}_class_progress.xlsx')
