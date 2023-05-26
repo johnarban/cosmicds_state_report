@@ -173,7 +173,7 @@ class QueryCosmicDSApi():
     payload = ""
     headers = {"authority": "api.cosmicds.cfa.harvard.edu"}
     
-    def __init__(self, story = None, class_id = None):
+    def __init__(self, story = HUBBLE_ROUTE_PATH, class_id = None):
         self.class_id = class_id
         self.story = story
         pass
@@ -181,6 +181,7 @@ class QueryCosmicDSApi():
     def get(self,url):
         response = requests.request("GET", url)
         return response
+        
         
     def get_roster(self, class_id = None, story = None):
         class_id = self.class_id or class_id
@@ -223,6 +224,18 @@ class QueryCosmicDSApi():
                 student_ids = [student_ids]
             data = [self.get_student_data(student_id) for student_id in student_ids]        
         return data
+    
+    def get_summary_data(self, story = None):
+        story = self.story or story
+        
+        url = f"{self.url_head}/{story}/all-data"
+        all_data = self.get(url).json()
+
+        return {
+            'measurements': pd.DataFrame(all_data['measurements']),
+            'studentData': pd.DataFrame(all_data['studentData']),
+            'classData': pd.DataFrame(all_data['classData'])
+               }
         
 
 
